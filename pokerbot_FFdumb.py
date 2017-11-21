@@ -86,6 +86,9 @@ def denseTanh(inFeats, weights, biases):
 
 def nextBatch(currIndex,size,data):
     n = len(data)
+    print("size is:"+str(size))
+    print("n is:"+str(n))
+    print("data is:"+str(data))
     assert size <= n
     endIndex = currIndex+size
     if endIndex < n:
@@ -93,10 +96,13 @@ def nextBatch(currIndex,size,data):
     else:
         endIndex = endIndex-n
         return np.concatenate((data[currIndex:n],data[:endIndex]),axis=0), currIndex+size
-    
+
 def runNN(data,savename,numEpochs=15,numDenseLayers=1,nDN=1,dropP=0.5,lr=1e-4,doSave=False):
     n = len(data)
     train = data[0:int(0.7*n)]
+    print("######runNN data is:")
+    print(data)
+    print(train)
     test = data[int(0.7*n):]
     numFeatures = len(test[0])-2 # ignore result one-hot
 
@@ -131,7 +137,7 @@ def runNN(data,savename,numEpochs=15,numDenseLayers=1,nDN=1,dropP=0.5,lr=1e-4,do
     y_predict = tf.argmax(y_result,1)
 
     y_ = tf.placeholder(tf.float32, shape=[None,2])
-    
+
     cross_entropy = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(
         labels=y_,logits=y_result))#TODO))
     train_step = tf.train.AdamOptimizer(lr).minimize(cross_entropy)
@@ -146,24 +152,31 @@ def runNN(data,savename,numEpochs=15,numDenseLayers=1,nDN=1,dropP=0.5,lr=1e-4,do
     numRuns = max(1,int(n/size))
     printIter = 1#max(1,int(numEpochs/20))
     print("Starting training...")
-    
+
     for i in range(numEpochs):
         np.random.shuffle(train)
+        print("numFeatures:"+str(numFeatures))
+        print("train:")
+        print(train)
         trainx = train[:,:numFeatures]
         trainy = train[:,numFeatures:]
+        print(numEpochs)
         for j in range(numRuns):
+            print("xstart:"+str(xstart))
+            print("size:"+str(size))
+            print("trainx:"+str(trainx))
             xbatch,xstart = nextBatch(xstart,size,trainx)
             ybatch,ystart = nextBatch(ystart,size,trainy)
-            #print("trainx length: " + str(len(xbatch)))
-            #print("trainy_result length: " + str(len(trainy_result)))
-            #print("trainy_predict length: " + str(len(trainy_predict)))
-            train_step.run(feed_dict={x: xbatch, 
+            print("trainx length: " + str(len(xbatch)))
+            print("trainy_result length: " + str(len(trainy_result)))
+            print("trainy_predict length: " + str(len(trainy_predict)))
+            train_step.run(feed_dict={x: xbatch,
                 y_: ybatch, keep_prob: dropP})
         if i% printIter == 0:
-            train_accuracy = sess.run(accuracy,feed_dict={x: xbatch, 
+            train_accuracy = sess.run(accuracy,feed_dict={x: xbatch,
                 y_: ybatch, keep_prob: 1})
             print("step %d, training accuracy %g"%(i, train_accuracy))
-    
+
     print("Starting testing...")
     testx = test[:,:numFeatures]
     testy = test[:,numFeatures:]
@@ -229,7 +242,7 @@ def testLoad(data,savename,numDenseLayers=1,nDN=1,dropP=0.5,lr=1e-4):
     y_predict = tf.argmax(y_result,1)
 
     #y_ = tf.placeholder(tf.float32, shape=[None,2])
-    
+
     #cross_entropy = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(
     #    labels=y_,logits=y_result))#TODO))
     #train_step = tf.train.AdamOptimizer(lr).minimize(cross_entropy)
@@ -292,7 +305,7 @@ def main():
 
     data = parseData(d,cardsOn=True,otherOn=False,limit = limit)
     print("Finished loading and parsing data...")
-
+    print(data)
     print("Creating NN structure...")
     # Training with 10000 games yields the following observations:
     # 4 layers with 256 nDN seems to work well: 80% test acc

@@ -1,43 +1,3 @@
-
-# coding: utf-8
-
-# In[32]:
-
-fname = r"C:\Users\Nic\Documents\pokerbot\training\smalldumb.json"
-d = loadData(fname)
-
-
-# In[93]:
-
-datas = parseData(d,cardsOn=True,onlyCards=True,limit = 10000)
-print("Finished loading and parsing data...")
-
-
-# In[95]:
-
-print("Creating NN structure...")
-# Training with 10000 games yields the following observations:
-# 4 layers with 256 nDN seems to work well: 80% test acc
-# 3 layers with 64 nDN seems to be the min: 70% test acc
-# 100+ epochs with lr 1e-4 shows noticeable improvement, but we cap it at 100 for speed
-runNN(datas[3],numEpochs=100,numDenseLayers=4,nDN=256,dropP = 0.5,lr=1e-4)
-
-
-# In[89]:
-
-# Verification that the games are well-distributed
-things = datas[3]
-negCount = 0
-for thing in things:
-    if thing[-1] == 0:
-        negCount += 1
-print(negCount)
-print(len(things))
-ratio = float(negCount)/len(things)
-print(ratio)
-print(len(datas[3])*0.3)
-
-
 # In[83]:
 
 import tensorflow as tf
@@ -127,7 +87,7 @@ def nextBatch(currIndex,size,data):
     else:
         endIndex = endIndex-n
         return np.concatenate((data[currIndex:n],data[:endIndex]),axis=0), currIndex+size
-    
+
 def runNN(data,numEpochs=15,numDenseLayers=1,nDN=1,dropP=0.5,lr=1e-4):
     n = len(data)
     train = data[0:int(0.7*n)]
@@ -178,7 +138,7 @@ def runNN(data,numEpochs=15,numDenseLayers=1,nDN=1,dropP=0.5,lr=1e-4):
     numRuns = max(1,int(n/size))
     printIter = max(1,int(numEpochs/20))
     print("Starting training...")
-    
+
     for i in range(numEpochs):
         np.random.shuffle(train)
         trainx = train[:,:-1]
@@ -192,7 +152,7 @@ def runNN(data,numEpochs=15,numDenseLayers=1,nDN=1,dropP=0.5,lr=1e-4):
             train_accuracy = accuracy.eval(feed_dict={
                 x:xbatch, y_: ybatch, keep_prob: 1.0})
             print("step %d, training accuracy %g"%(i, train_accuracy))
-    
+
     print("Starting testing...")
     testx = test[:,:-1]
     testy = test[:,-1]
@@ -206,10 +166,40 @@ def runNN(data,numEpochs=15,numDenseLayers=1,nDN=1,dropP=0.5,lr=1e-4):
             numMatch+=1
     matchRatio = float(numMatch)/len(preds)
     print(matchRatio)
+
+    doSave = 1
+    savename = "./cc.out"
+    if doSave:
+        saver = tf.train.Saver(write_version=tf.train.SaverDef.V1)
+        save_path = saver.save(sess,savename)#.//dummy.ckpt
+        print("Saved to: "+save_path)
+
     sess.close()
 
 
-# In[ ]:
+if __name__ == "__main__":
+    fname = "/Users/zhangzhihui/WorkSpace/github/PokerBot/bttt.json"
+    #fname = r"C:\Users\Nic\Documents\pokerbot\training\smalldumb.json"
+    d = loadData(fname)
+    datas = parseData(d,cardsOn=True,onlyCards=True,limit = 10000)
+    print("Finished loading and parsing data...")
+    print("Creating NN structure...")
+# Training with 10000 games yields the following observations:
+# 4 layers with 256 nDN seems to work well: 80% test acc
+# 3 layers with 64 nDN seems to be the min: 70% test acc
+# 100+ epochs with lr 1e-4 shows noticeable improvement, but we cap it at 100 for speed
+    runNN(datas[3],numEpochs=100,numDenseLayers=4,nDN=256,dropP = 0.5,lr=1e-4)
+# In[89]:
 
-
-
+# Verification that the games are well-distributed
+    things = datas[3]
+    negCount = 0
+    for thing in things:
+        if thing[-1] == 0:
+            negCount += 1
+    print(negCount)
+    print(len(things))
+    ratio = float(negCount)/len(things)
+    print(ratio)
+    print(len(datas[3])*0.3)
+    print("end runNN")

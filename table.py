@@ -26,16 +26,49 @@ def permutation(current, indices):
                   sequential)
     """
     indices.sort()
-	permuter = [current[a] for a in indices]
-	permutations = [list(x) for x in list(itertools.permutations(permuter))]
-	temp1 = current[:min(indices)]
-	temp2 = current[max(indices)+1:]
-	alllist = []
-	for i in permutations:
-		alllist.append(temp1 + i + temp2)
-	return alllist
+    permuter = [current[a] for a in indices]
+    permutations = [list(x) for x in list(itertools.permutations(permuter))]
+    temp1 = current[:min(indices)]
+    temp2 = current[max(indices)+1:]
+    alllist = []
+    for i in permutations:
+        alllist.append(temp1 + i + temp2)
+    return alllist
 
-
+def generateTrainingData1(numSamples, fname, iterPrint = 10000,numPlayers=2,targetRound=-1):
+    """
+    Just call this to simulate poker games and save to a json file.
+    - numSamples: positive integer number of games to simulate
+    - fname: a string denoting a json file location
+    """
+    players = []
+    for i in range(numPlayers):
+        players.append(Player())
+    t = Table(players)
+    with open(fname,'w') as outfile:
+        actDicts = []
+        print(numSamples)
+        print(fname)
+        print(iterPrint)
+        print(numPlayers)
+        print(targetRound)
+        for i in range(numSamples):
+            # TODO: might want to randomize the dealer index
+            print("sdf")
+            actDicts += t.playGame(0,log=True)
+            print("sdf")
+            print actDicts
+            if i % iterPrint == 0:
+                print(i)
+        print("dumping")
+        json.dump(actDicts,outfile)
+        outfile.close()
+    print("finished dump")
+    negCount = 0
+    for actDict in actDicts:
+        if actDict["result"] == -1:
+            negCount+=1
+    print("negCount: " + str(negCount))
 
 def generateTrainingData(numSamples, fname):
     """
@@ -44,31 +77,33 @@ def generateTrainingData(numSamples, fname):
     - fname: a string denoting a json file location
     """
     players = [Player(),Player()]
-    t = Table(players)    
+    t = Table(players)
     with open(fname,'w') as outfile:
         actDicts = []
         for i in range(numSamples):
             # TODO: might want to randomize the dealer index
             current = t.playGame(0,log=True)
-	    handPerms = permutation(current["handCards"], range(len(current["handCards"])))
-	    tablePerms = permutation(current["tableCards"], range(len(current["tableCards"])))
-	    for x in handPerms:
-		for j in tablePerms:
-			newcurr = copy.deepcopy(current)
-			newcurr["handCards"] = x
-			newcurr["tablePerms"] = j
-			actDicts +=  newcurr
+#            print(current["handCards"])
+            print(current)
+            handPerms = permutation(current["handCards"], range(len(current["handCards"])))
+            tablePerms = permutation(current["tableCards"], range(len(current["tableCards"])))
+            for x in handPerms:
+                for j in tablePerms:
+                    newcurr = copy.deepcopy(current)
+                    newcurr["handCards"] = x
+                    newcurr["tablePerms"] = j
+                    actDicts +=  newcurr
             if i % 10000 == 0:
                 print(i)
         print("dumping")
         json.dump(actDicts,outfile)
         outfile.close()
-        
+
 
 class Player():
     def __init__(self):
         self.hand = []
-    
+
     def dumbAct(self,dealerIndex,playerIndex,tableCards,pot,
                 bets,remainingPlayers,rd_num,evaluator,log=False,onlyCall=False):
         """
@@ -76,8 +111,8 @@ class Player():
             0: Fold
             1: Call
             2: Bet pot
-        
-        Saves the decision and features used in actDict.        
+
+        Saves the decision and features used in actDict.
         Returns (Response, bet amount, actDict).
         """
         maxBet = 0
@@ -98,6 +133,19 @@ class Player():
             actDict["bets"] = bets
             actDict["remPlayers"] = remainingPlayers
             actDict["rd_num"] = rd_num
+
+            if len(tableCards + self.hand) >= 5:
+                playerScore = evaluator.evaluate(self.hand,tableCards)
+                handRank = evaluator.get_rank_class(playerScore)
+                actDict["handScore"] = 10*float(playerScore)/7462
+                actDict["handRank"] = handRank
+            if len(tableCards) >= 5:
+                tableScore = evaluator.evaluate([],tableCards)
+                # TODOJUMPPOINT
+                tableRank = evaluator.get_rank_class(tableScore)
+                actDict["scoreDiff"] = 10*float(tableScore-playerScore)/tableScore
+                actDict["rankDiff"] = tableRank-handRank
+
         if len(tableCards) < 5:
             action = (CALL_VAL,callBet)
             if log:
@@ -117,14 +165,14 @@ class Player():
             if log:
                 actDict["action"] = action
             return (BET_VAL,potBet,actDict)
-        
+
 class Table():
     def __init__(self,players):
         self.numPlayers = len(players)
         self.players = players
         self.numCardsToDeal = self.numPlayers*2+5
         assert(self.numCardsToDeal <= 52)
-        
+
         self.cardsToDeal = [0]*self.numCardsToDeal
         self.dealIndex = 0
         self.pot = 0
@@ -134,7 +182,7 @@ class Table():
         self.tableCards = []
         self.evaluator = Evaluator()
         self.logs = []
-        
+
     def resetTable(self):
         self.dealIndex = 0
         self.pot = 0
@@ -143,13 +191,13 @@ class Table():
         self.tableCards = []
         self.checks = [False]*self.numPlayers
         self.logs = []
-        
+
         viableCards = Deck.GetFullDeck()
         for i in range(self.numCardsToDeal):
             cardIndex = random.randint(0,len(viableCards)-1)
             self.cardsToDeal[i] = viableCards[cardIndex]
             del(viableCards[cardIndex])
-        
+
     def playGame(self,dealerIndex,log):
         self.resetTable()
         self.preFlop(dealerIndex,log)
@@ -161,16 +209,16 @@ class Table():
                 playerIndex = actDict["playerIndex"]
                 actDict["result"] = 1 if playerIndex in winplayers else -1
         return self.logs
-    
+
     def computeBestHand(self,player):
         return self.evaluator.evaluate(player.hand,self.tableCards)
-    
+
     def allChecked(self):
         for check in self.checks:
             if check == False:
                 return False
         return True
-    
+
     def doBets(self,rd_num,dealerIndex, log):
         firstBetPos = dealerIndex if rd_num == 0 else dealerIndex+1
         self.checks = [False]*self.numPlayers
@@ -199,7 +247,7 @@ class Table():
                     self.checks[i] = False
                     self.bets[i] += bet
                     self.pot += bet
-    
+
     def preFlop(self,dealerIndex,log):
         for player in self.players:
             card1 = self.cardsToDeal[self.dealIndex]
@@ -210,23 +258,23 @@ class Table():
         self.bets[(dealerIndex+1) % self.numPlayers] = BIG_BLIND
         self.pot = SMALL_BLIND + BIG_BLIND
         self.doBets(0,dealerIndex,log)
-    
+
     def flop(self,dealerIndex,log):
         for i in range(3):
             self.tableCards.append(self.cardsToDeal[self.dealIndex])
             self.dealIndex += 1
         self.doBets(1,dealerIndex,log)
-    
+
     def turn(self,dealerIndex,log):
         self.tableCards.append(self.cardsToDeal[self.dealIndex])
         self.dealIndex += 1
         self.doBets(2,dealerIndex,log)
-        
+
     def river(self,dealerIndex,log):
         self.tableCards.append(self.cardsToDeal[self.dealIndex])
         self.dealIndex += 1
         self.doBets(3,dealerIndex,log)
-        
+
         winhand = float('inf')
         winplayers = []
         for i in range(self.numPlayers):
@@ -243,7 +291,7 @@ class Table():
         return winplayers
 
 # END OF OUR CODE
-    
+
 
 
 # In[4]:
@@ -466,7 +514,7 @@ class Card ():
                 output += Card.int_to_pretty_str(c) + " "
 
         print(output)
-        
+
 class Deck:
     """
     Class representing a deck. The first time we create, we seed the static
@@ -781,16 +829,16 @@ class Evaluator(object):
     Evaluates hand strengths using a variant of Cactus Kev's algorithm:
     http://www.suffecool.net/poker/evaluator.html
 
-    I make considerable optimizations in terms of speed and memory usage, 
-    in fact the lookup table generation can be done in under a second and 
-    consequent evaluations are very fast. Won't beat C, but very fast as 
-    all calculations are done with bit arithmetic and table lookups. 
+    I make considerable optimizations in terms of speed and memory usage,
+    in fact the lookup table generation can be done in under a second and
+    consequent evaluations are very fast. Won't beat C, but very fast as
+    all calculations are done with bit arithmetic and table lookups.
     """
 
     def __init__(self):
 
         self.table = LookupTable()
-        
+
         self.hand_size_map = {
             5 : self._five,
             6 : self._six,
@@ -799,9 +847,9 @@ class Evaluator(object):
 
     def evaluate(self, handCards, tableCards):
         """
-        This is the function that the user calls to get a hand rank. 
+        This is the function that the user calls to get a hand rank.
 
-        Supports empty board, etc very flexible. No input validation 
+        Supports empty board, etc very flexible. No input validation
         because that's cycles!
         """
         cards = handCards + tableCards
@@ -813,7 +861,7 @@ class Evaluator(object):
         a rank in the range [1, 7462], with lower ranks being more powerful.
 
         Variant of Cactus Kev's 5 card evaluator, though I saved a lot of memory
-        space using a hash table and condensing some of the calculations. 
+        space using a hash table and condensing some of the calculations.
         """
         # if flush
         if cards[0] & cards[1] & cards[2] & cards[3] & cards[4] & 0xF000:
@@ -829,7 +877,7 @@ class Evaluator(object):
     def _six(self, cards):
         """
         Performs five_card_eval() on all (6 choose 5) = 6 subsets
-        of 5 cards in the set of 6 to determine the best ranking, 
+        of 5 cards in the set of 6 to determine the best ranking,
         and returns this ranking.
         """
         minimum = LookupTable.MAX_HIGH_CARD
@@ -846,14 +894,14 @@ class Evaluator(object):
     def _seven(self, cards):
         """
         Performs five_card_eval() on all (7 choose 5) = 21 subsets
-        of 5 cards in the set of 7 to determine the best ranking, 
+        of 5 cards in the set of 7 to determine the best ranking,
         and returns this ranking.
         """
         minimum = LookupTable.MAX_HIGH_CARD
 
         all5cardcombobs = itertools.combinations(cards, 5)
         for combo in all5cardcombobs:
-            
+
             score = self._five(combo)
             if score < minimum:
                 minimum = score
@@ -863,7 +911,7 @@ class Evaluator(object):
     def get_rank_class(self, hr):
         """
         Returns the class of hand given the hand hand_rank
-        returned from evaluate. 
+        returned from evaluate.
         """
         if hr >= 0 and hr < LookupTable.MAX_STRAIGHT_FLUSH:
             return LookupTable.MAX_TO_RANK_CLASS[LookupTable.MAX_STRAIGHT_FLUSH]
@@ -900,9 +948,9 @@ class Evaluator(object):
 
     def hand_summary(self, board, hands):
         """
-        Gives a sumamry of the hand with ranks as time proceeds. 
+        Gives a sumamry of the hand with ranks as time proceeds.
 
-        Requires that the board is in chronological order for the 
+        Requires that the board is in chronological order for the
         analysis to make sense.
         """
 
@@ -914,9 +962,9 @@ class Evaluator(object):
         stages = ["FLOP", "TURN", "RIVER"]
 
         for i in range(len(stages)):
-            line = ("=" * line_length) + " %s " + ("=" * line_length) 
+            line = ("=" * line_length) + " %s " + ("=" * line_length)
             print(line % stages[i])
-            
+
             best_rank = 7463  # rank one worse than worst hand
             winners = []
             for player, hand in enumerate(hands):
@@ -947,16 +995,13 @@ class Evaluator(object):
             # otherwise on all other streets
             else:
                 print()
-                print(("=" * line_length) + " HAND OVER " + ("=" * line_length)) 
+                print(("=" * line_length) + " HAND OVER " + ("=" * line_length))
                 if len(winners) == 1:
-                    print("Player %d is the winner with a %s\n" % (winners[0] + 1, 
+                    print("Player %d is the winner with a %s\n" % (winners[0] + 1,
                         self.class_to_string(self.get_rank_class(self.evaluate(hands[winners[0]], board)))))
                 else:
-                    print("Players %s tied for the win with a %s\n" % (winners, 
+                    print("Players %s tied for the win with a %s\n" % (winners,
                         self.class_to_string(self.get_rank_class(self.evaluate(hands[winners[0]], board)))))
 
 
 # In[ ]:
-
-
-
