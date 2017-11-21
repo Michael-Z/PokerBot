@@ -9,16 +9,16 @@ import itertools
 import copy
 import sys
 
-# {'tableCards': [], 
-#'rd_num': 0, 
-#'pot': 150, 
-#'action': (1, 50), 
-#'playerIndex': 1, 
-#'dealerIndex': 1, 
-#'remPlayers': [True, True], 
-#'result': -1, 
-#'handCards': [38, 49], 
-#'callBet': 50, 
+# {'tableCards': [],
+#'rd_num': 0,
+#'pot': 150,
+#'action': (1, 50),
+#'playerIndex': 1,
+#'dealerIndex': 1,
+#'remPlayers': [True, True],
+#'result': -1,
+#'handCards': [38, 49],
+#'callBet': 50,
 #'bets': [100, 100]}
 
 def loadData(fname):
@@ -133,7 +133,7 @@ def nextBatch(currIndex,size,data):
     else:
         endIndex = endIndex-n
         return np.concatenate((data[currIndex:n],data[:endIndex]),axis=0), currIndex+size
-    
+
 ### JUMPPOINT
 def runNN(featVecs,numCurrDumbFeats,playerIndices,tableDicts,savenameCurr,savenameDumbNext=None,savenameQNext=None,
     savenameQ=None,randBase=0.1,numFeatures=21,numFeaturesNext=None,
@@ -170,7 +170,7 @@ def runNN(featVecs,numCurrDumbFeats,playerIndices,tableDicts,savenameCurr,savena
         train_step = tf.train.AdamOptimizer(lr).minimize(cross_entropy)
         correct_prediction = tf.equal(y_predict, tf.argmax(y_,1))
         accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
-        
+
         saverDumbCurr = tf.train.Saver()
         varDictDumbCurr = {"y_predict" : y_predict, "x" : x, "y_" : y_, "keep_prob" : keep_prob}
 
@@ -209,7 +209,7 @@ def runNN(featVecs,numCurrDumbFeats,playerIndices,tableDicts,savenameCurr,savena
             train_step = tf.train.AdamOptimizer(lr).minimize(cross_entropy)
             correct_prediction = tf.equal(y_predict, tf.argmax(y_,1))
             accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
-            
+
             saverDumbNext = tf.train.Saver()
             varDictDumbNext = {"y_predict" : y_predict, "x" : x, "y_" : y_, "keep_prob" : keep_prob}
 
@@ -253,7 +253,7 @@ def runNN(featVecs,numCurrDumbFeats,playerIndices,tableDicts,savenameCurr,savena
             varDictQNext = {"y_predict" : y_predict, "y_result" : y_result, "x" : x, "y_" : y_, "keep_prob" : keep_prob}
         sessQNext = tf.InteractiveSession(graph = gQNext)
         saverQNext.restore(sessQNext,savenameQNext)
-    
+
     # -------------------------------------------------------------------------------------
     # -------------------------------------------------------------------------------------
     print("Constructing FFQ net for current round...")
@@ -296,7 +296,7 @@ def runNN(featVecs,numCurrDumbFeats,playerIndices,tableDicts,savenameCurr,savena
     # Run the Q-learning
     print("Training FFQ net via Q-learning...")
     players = [tableQ.Player(),tableQ.Player()]
-    t = tableQ.Table(players)    
+    t = tableQ.Table(players)
     for i in range(len(tableDicts)):
         tableDict = tableDicts[i]
         playerIndex = playerIndices[i]
@@ -306,7 +306,7 @@ def runNN(featVecs,numCurrDumbFeats,playerIndices,tableDicts,savenameCurr,savena
             feed_dict={varDictQ["x"]:featVec,varDictQ["y_"]: resultFiller, varDictQ["keep_prob"]: 1})
         allQ = list(allQ[0])
         action = action[0]
-        
+
         # Sometimes, choose action randomly to explore
         if np.random.rand(1) < randBase:
             action = random.randint(0,2)
@@ -404,14 +404,14 @@ def runNN(featVecs,numCurrDumbFeats,playerIndices,tableDicts,savenameCurr,savena
                 else:
                     parsedFeats = np.array([parseFeatDict(featDict,cardsOn=True,otherOn=True)])
                     resultFiller = np.array([[-1]*3])
-                    nextQs = sessQNext.run(varDictQNext["y_result"], 
+                    nextQs = sessQNext.run(varDictQNext["y_result"],
                         feed_dict={varDictQNext["x"]:featVec,varDictQNext["y_"]: resultFiller, varDictQNext["keep_prob"]: 1})
                     nextQs = list(nextQs[0])
                     maxNextQ = np.max(nextQs)
-        
+
         allQ[action] = allQ[action] + r + qRatio*maxNextQ
         allQ = np.array([allQ])
-        
+
         #Train our network using target and predicted Q values
         sessQ.run(varDictQ["train_step"],feed_dict={x:featVec,y_:allQ, keep_prob: dropP})
         if i % 100 == 0:
@@ -437,8 +437,7 @@ def main():
     savenameQ = sys.argv[12]
     fnameCurrMicro = sys.argv[13] # micro of next round
     fnameNextMicro = sys.argv[14] # micro of this round
-
-
+    
     DUMB_VAL = 1
     Q_VAL = 0
 
@@ -452,7 +451,7 @@ def main():
     featDicts = [thing[0] for thing in d]
     tableDicts = [thing[1] for thing in d]
     featVecs,playerIndices = parseData(featDicts,cardsOn=True,otherOn=True,limit = -1)
-    numCurrQFeats = len(featVecs[0])   
+    numCurrQFeats = len(featVecs[0])
 
     dDumb = loadData(fnameCurrMicro)
     featDictsDumb = [thing[0] for thing in d]
@@ -486,6 +485,6 @@ def main():
         runNN(featVecs,numCurrDumbFeats,playerIndices,tableDicts,savenameCurr,savenameDumbNext=None,savenameQNext=None,
             savenameQ=savenameQ,randBase=randBase,numFeatures=numCurrQFeats,numFeaturesNext=None,
             numDenseLayers=numLayers,nDN=numNeurons,dropP=dropP,lr=lrate, qRatio = qRatio, doSave = doSave)
-    
+
 if __name__ == "__main__":
     main()
